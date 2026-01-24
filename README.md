@@ -1,5 +1,10 @@
 # Debris-Modeling-Streaks
 
-write in c/c++
+## V.1.
+- Convert pixels to 1 or 0 (black or white)
+- Identify streaks
+- 
 
-rust
+## Long term plan:
+1. Develop the program in Python
+2. Write a new version in c/c++ or rust
