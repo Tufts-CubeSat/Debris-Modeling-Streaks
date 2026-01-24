@@ -1,0 +1,2 @@
+- The HST observations are publicly available in the [eHST archives](http://hst.esac.esa.int/ehst)
+- The list of HST individual images with the satellite classifications in this paper is available [on Zenodo](https://doi.org/10.5281/zenodo.7474191)
