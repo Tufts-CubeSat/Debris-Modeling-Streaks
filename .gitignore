@@ -8,7 +8,7 @@ __pycache__/
 dist/
 build/
 
-# Generated datasets (exclude large image files)
+# Generated datasets
 debris_dataset/
 
 # IDE

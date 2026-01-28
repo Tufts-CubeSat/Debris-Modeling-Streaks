@@ -1,5 +1,5 @@
 """
-Example script to generate a dataset of semisynthetic space debris images.
+Generate a dataset of semisynthetic space debris images.
 """
 
 import os
@@ -65,16 +65,23 @@ def generate_dataset(output_dir: str, num_images: int = 100, seed: int = 42):
         for debris in debris_params:
             debris_label = {
                 'start_point': [int(debris['start_point'][0]), int(debris['start_point'][1])],
-                'angle': float(debris['angle']) if 'angle' in debris else None,
                 'length': int(debris['length']),
                 'thickness': int(debris['thickness']),
                 'intensity': float(debris['intensity']),
                 'type': debris.get('type', 'linear')
             }
+            
             if 'end_point' in debris:
                 debris_label['end_point'] = [int(debris['end_point'][0]), int(debris['end_point'][1])]
-            if 'curve_amount' in debris:
-                debris_label['curve_amount'] = float(debris['curve_amount'])
+            
+            # Add type-specific parameters
+            if debris.get('type') == 'curved':
+                if 'curve_amount' in debris:
+                    debris_label['curve_amount'] = float(debris['curve_amount'])
+            else:
+                # Linear streak - include angle
+                if 'angle' in debris:
+                    debris_label['angle'] = float(debris['angle'])
 
             labels['debris'].append(debris_label)
 
@@ -111,6 +118,7 @@ def generate_preview_image(output_path: str = "preview.png"):
     # Draw bounding boxes and labels
     for idx, debris in enumerate(debris_params):
         start = debris['start_point']
+        debris_type = debris.get('type', 'linear')
 
         if 'end_point' in debris:
             end = debris['end_point']
@@ -124,10 +132,11 @@ def generate_preview_image(output_path: str = "preview.png"):
             cv2.circle(img_annotated, (start[1], start[0]), 5, (255, 0, 0), -1)
             cv2.circle(img_annotated, (end[1], end[0]), 5, (0, 0, 255), -1)
         else:
+            # Fallback if end_point is missing
             cv2.circle(img_annotated, (start[1], start[0]), 5, (255, 0, 0), -1)
 
-        # Add label
-        label = f"Debris {idx+1}"
+        # Add label with type indicator
+        label = f"{debris_type.capitalize()} {idx+1}"
         cv2.putText(img_annotated, label,
                    (start[1] + 10, start[0] - 10),
                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
@@ -144,11 +153,14 @@ def generate_preview_image(output_path: str = "preview.png"):
     print(f"  Right: Annotated with debris locations")
     print(f"\nDebris details:")
     for idx, debris in enumerate(debris_params):
+        debris_type = debris.get('type', 'linear')
         print(f"  Debris {idx+1}:")
-        print(f"    Type: {debris.get('type', 'linear')}")
+        print(f"    Type: {debris_type}")
         print(f"    Length: {debris['length']} pixels")
         print(f"    Thickness: {debris['thickness']} pixels")
         print(f"    Intensity: {debris['intensity']:.2f}")
+        if debris_type == 'curved' and 'curve_amount' in debris:
+            print(f"    Curve amount: {debris['curve_amount']:.3f}")
 
 
 if __name__ == "__main__":

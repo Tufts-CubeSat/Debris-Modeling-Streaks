@@ -3,6 +3,10 @@ Semisynthetic Space Debris Detection Data Generator
 
 Generates realistic astronomical images with space debris streaks for training
 detection models.
+
+- Vectorized star field generation
+- OpenCV-based streak drawing
+- Noise application occurs last (to most mimic real sensor behavior)
 """
 
 import numpy as np
@@ -27,7 +31,7 @@ class DebrisDataGenerator:
     def generate_star_field(self, num_stars: int = 500,
                            star_intensity_range: Tuple[float, float] = (0.3, 1.0)) -> np.ndarray:
         """
-        Generate a realistic star field background.
+        Generate a realistic star field background
 
         Args:
             num_stars: Number of stars to generate
@@ -37,34 +41,46 @@ class DebrisDataGenerator:
             Star field image as float array [0, 1]
         """
         img = np.zeros(self.image_size, dtype=np.float32)
+        h, w = self.image_size
 
-        for _ in range(num_stars):
-            # Random position
-            y = self.rng.randint(0, self.image_size[0])
-            x = self.rng.randint(0, self.image_size[1])
+        # Generate all random parameters at once (vectorized)
+        y_coords = self.rng.randint(0, h, size=num_stars)
+        x_coords = self.rng.randint(0, w, size=num_stars)
+        
+        # Random intensity with power-law distribution (more dim stars)
+        intensity_base = self.rng.beta(2, 5, size=num_stars)
+        intensities = star_intensity_range[0] + intensity_base * (star_intensity_range[1] - star_intensity_range[0])
+        
+        # Random size (most stars are point sources, some are slightly larger)
+        sizes = self.rng.choice([1, 2, 3], size=num_stars, p=[0.7, 0.25, 0.05])
 
-            # Random intensity with power-law distribution (more dim stars)
-            intensity = self.rng.beta(2, 5)
-            intensity = star_intensity_range[0] + intensity * (star_intensity_range[1] - star_intensity_range[0])
+        # Process point sources (size 1) in vectorized fashion
+        point_mask = sizes == 1
+        point_y = y_coords[point_mask]
+        point_x = x_coords[point_mask]
+        point_intensities = intensities[point_mask]
+        
+        # Use advanced indexing for all point sources at once
+        img[point_y, point_x] = point_intensities
 
-            # Random size (most stars are point sources, some are slightly larger)
-            size = self.rng.choice([1, 2, 3], p=[0.7, 0.25, 0.05])
+        # Process larger stars individually (fewer of these)
+        for idx in np.where(~point_mask)[0]:
+            y, x = y_coords[idx], x_coords[idx]
+            size = sizes[idx]
+            intensity = intensities[idx]
+            
+            # Create small Gaussian blob for larger stars
+            y_min = max(0, y - size)
+            y_max = min(h, y + size + 1)
+            x_min = max(0, x - size)
+            x_max = min(w, x + size + 1)
 
-            if size == 1:
-                img[y, x] = intensity
-            else:
-                # Create small Gaussian blob for larger stars
-                y_min = max(0, y - size)
-                y_max = min(self.image_size[0], y + size + 1)
-                x_min = max(0, x - size)
-                x_max = min(self.image_size[1], x + size + 1)
-
-                yy, xx = np.ogrid[y_min:y_max, x_min:x_max]
-                gaussian = np.exp(-((yy - y)**2 + (xx - x)**2) / (2 * (size/2)**2))
-                img[y_min:y_max, x_min:x_max] = np.maximum(
-                    img[y_min:y_max, x_min:x_max],
-                    gaussian * intensity
-                )
+            yy, xx = np.ogrid[y_min:y_max, x_min:x_max]
+            gaussian = np.exp(-((yy - y)**2 + (xx - x)**2) / (2 * (size/2)**2))
+            img[y_min:y_max, x_min:x_max] = np.maximum(
+                img[y_min:y_max, x_min:x_max],
+                gaussian * intensity
+            )
 
         return img
 
@@ -123,45 +139,66 @@ class DebrisDataGenerator:
         # Create streak on separate layer
         streak_layer = np.zeros_like(img)
 
-        # Draw the streak with varying intensity along length (fade at ends)
+        # Convert (y, x) to (x, y) for OpenCV convention
+        start_cv = (start_point[1], start_point[0])
+        end_cv = (end_point[1], end_point[0])
+        
+        # Draw anti-aliased line with base intensity
+        cv2.line(streak_layer, start_cv, end_cv, 
+                float(intensity), thickness, cv2.LINE_AA)
+        
+        # Apply Gaussian blur to simulate soft edges and thickness falloff
+        if thickness > 1:
+            sigma = thickness / 2.0
+            streak_layer = cv2.GaussianBlur(streak_layer, (0, 0), sigmaX=sigma, sigmaY=sigma)
+        
+        # Create fade mask (bright in center, dim at ends)
+        fade_mask = np.zeros_like(img)
+        cv2.line(fade_mask, start_cv, end_cv, 1.0, max(thickness * 3, 10), cv2.LINE_AA)
+        
+        # Generate gradient for fade effect
         num_points = max(length, 100)
         for i in range(num_points):
             t = i / num_points
             y = int(start_point[0] + t * (end_point[0] - start_point[0]))
             x = int(start_point[1] + t * (end_point[1] - start_point[1]))
-
+            
+            # Check bounds
             if 0 <= y < h and 0 <= x < w:
                 # Fade intensity at the ends
                 fade = 1.0 - abs(2 * t - 1) ** 1.5
-                local_intensity = intensity * fade
-
-                # Draw with thickness
-                for dy in range(-thickness, thickness + 1):
-                    for dx in range(-thickness, thickness + 1):
-                        ny, nx = y + dy, x + dx
-                        if 0 <= ny < h and 0 <= nx < w:
-                            # Gaussian falloff from center
-                            dist = np.sqrt(dy**2 + dx**2)
-                            if thickness > 0:
-                                weight = np.exp(-(dist**2) / (2 * thickness**2))
-                            else:
-                                weight = 1.0 if dist == 0 else 0.0
-                            streak_layer[ny, nx] = max(
-                                streak_layer[ny, nx],
-                                local_intensity * weight
-                            )
+                
+                # Apply fade in a small region around each point
+                radius = max(thickness * 2, 3)
+                y_min = max(0, y - radius)
+                y_max = min(h, y + radius + 1)
+                x_min = max(0, x - radius)
+                x_max = min(w, x + radius + 1)
+                
+                fade_mask[y_min:y_max, x_min:x_max] = np.maximum(
+                    fade_mask[y_min:y_max, x_min:x_max],
+                    fade
+                )
+        
+        # Apply fade to streak
+        streak_layer = streak_layer * fade_mask
 
         # Apply motion blur if requested
         if motion_blur and length > 10:
             blur_size = min(15, max(3, thickness * 2))
-            kernel = np.zeros((blur_size, blur_size))
+            if blur_size % 2 == 0:
+                blur_size += 1  # Ensure odd size for kernel
+            
             # Create directional blur kernel
+            kernel = np.zeros((blur_size, blur_size))
             kernel_angle = angle_rad + np.pi / 2
+            
             for i in range(blur_size):
                 ky = int(blur_size // 2 + (i - blur_size // 2) * np.sin(kernel_angle) * 0.5)
                 kx = int(blur_size // 2 + (i - blur_size // 2) * np.cos(kernel_angle) * 0.5)
                 if 0 <= ky < blur_size and 0 <= kx < blur_size:
                     kernel[ky, kx] += 1
+            
             kernel = kernel / (kernel.sum() + 1e-10)
             streak_layer = cv2.filter2D(streak_layer, -1, kernel)
 
@@ -188,6 +225,7 @@ class DebrisDataGenerator:
                                  intensity: Optional[float] = None) -> Tuple[np.ndarray, dict]:
         """
         Add a curved debris streak (e.g., tumbling debris or long exposure).
+        Calculates and returns end_point for consistent labeling.
 
         Args:
             img: Input image
@@ -226,6 +264,10 @@ class DebrisDataGenerator:
         base_angle = self.rng.uniform(0, 2 * np.pi)
 
         num_points = max(length * 2, 100)
+        
+        # Track the final endpoint for labeling
+        end_point = start_point
+        
         for i in range(num_points):
             t = i / num_points
 
@@ -236,26 +278,33 @@ class DebrisDataGenerator:
             y = int(start_point[0] + distance * np.sin(angle))
             x = int(start_point[1] + distance * np.cos(angle))
 
+            # Update end_point to the last valid point
             if 0 <= y < h and 0 <= x < w:
+                end_point = (y, x)
+                
                 # Fade at ends
                 fade = 1.0 - abs(2 * t - 1) ** 1.5
                 local_intensity = intensity * fade
 
+                # Draw with thickness using clipped bounds
                 for dy in range(-thickness, thickness + 1):
                     for dx in range(-thickness, thickness + 1):
-                        ny, nx = y + dy, x + dx
-                        if 0 <= ny < h and 0 <= nx < w:
-                            dist = np.sqrt(dy**2 + dx**2)
-                            weight = np.exp(-(dist**2) / (2 * max(thickness, 1)**2))
-                            streak_layer[ny, nx] = max(
-                                streak_layer[ny, nx],
-                                local_intensity * weight
-                            )
+                        ny = np.clip(y + dy, 0, h - 1)
+                        nx = np.clip(x + dx, 0, w - 1)
+                        
+                        # Gaussian falloff from center
+                        dist = np.sqrt(dy**2 + dx**2)
+                        weight = np.exp(-(dist**2) / (2 * max(thickness, 1)**2))
+                        streak_layer[ny, nx] = max(
+                            streak_layer[ny, nx],
+                            local_intensity * weight
+                        )
 
         result = np.maximum(img, streak_layer)
 
         params = {
             'start_point': start_point,
+            'end_point': end_point,
             'curve_amount': curve_amount,
             'length': length,
             'thickness': thickness,
@@ -334,7 +383,7 @@ class DebrisDataGenerator:
                 img, params = self.add_debris_streak(img)
             debris_params.append(params)
 
-        # Add realistic effects
+
         img = self.add_vignetting(img, strength=vignetting_strength)
         img = self.add_noise(img, noise_level=noise_level)
 
