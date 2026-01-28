@@ -10,6 +10,14 @@
   - /images/: 16-bit PNG files of the star fields.
   - /labels/: JSON files containing the ground truth for every streak.
 - **Adjusting Realism:** Modify the generate_image parameters in `generate_dataset.py`
+- **Anallyzing Results** Run the evaluation using `python run_evaluation.py --dataset-dir debris_dataset`. That will:
+  - Import StreakDetector from streak_detector.py
+  - Run it on all images in debris_dataset/images/
+  - Compare detections to ground truth in debris_dataset/labels/
+  - Print precision, recall, F1 score
+  - Save visualizations to debris_dataset/evaluation_results/
+  - Save detailed results to debris_dataset/evaluation_results.json
+
 
 ## Long term plan:
 1. Develop the program in Python
