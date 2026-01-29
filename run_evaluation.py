@@ -316,7 +316,7 @@ def run_evaluation(dataset_dir: str,
     print(f"Dataset: {dataset_dir}")
     print(f"Images: {len(image_files)}")
     print(f"IoU Threshold: {iou_threshold}")
-    print(f"Detector: threshold={detector.threshold}, min_length={detector.min_length}")
+    print(f"Detector: threshold={detector.threshold}, min_length={detector.min_length}, min_aspect={detector.min_aspect}")
     print("="*70)
     
     # Accumulate metrics
@@ -391,8 +391,7 @@ def run_evaluation(dataset_dir: str,
         'detector_params': {
             'threshold': detector.threshold,
             'min_length': detector.min_length,
-            'max_gap': detector.max_gap,
-            'hough_threshold': detector.hough_threshold
+            'min_aspect': detector.min_aspect
         },
         'overall_metrics': {
             'true_positives': overall_metrics.true_positives,
@@ -500,10 +499,10 @@ if __name__ == "__main__":
         help="Minimum streak length in pixels (default: 40)"
     )
     parser.add_argument(
-        "--max-gap", 
-        type=int, 
-        default=10,
-        help="Maximum gap in streak (default: 10)"
+        "--min-aspect", 
+        type=float, 
+        default=3.0,
+        help="Minimum aspect ratio for streaks (default: 3.0)"
     )
     parser.add_argument(
         "--no-visualizations", 
@@ -520,9 +519,9 @@ if __name__ == "__main__":
     
     # Create detector with specified parameters
     detector = StreakDetector(
-        threshold=args.detection_threshold,
+        threshold=int(args.detection_threshold * 255),  # Convert 0-1 to 0-255
         min_length=args.min_length,
-        max_gap=args.max_gap
+        min_aspect=args.min_aspect
     )
     
     # Run evaluation
