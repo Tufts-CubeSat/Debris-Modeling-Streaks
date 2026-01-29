@@ -18,6 +18,12 @@
   - Save visualizations to debris_dataset/evaluation_results/
   - Save detailed results to debris_dataset/evaluation_results.json
 
+## Notes:
+- `streak_detector.py`: a simplified cv2 and numpy based detector program that can be run with `run_evaluation.py` to assess & compare streak detection to json ground-truth labels
+- `streak_detector_bare.py`: a prototype for what an actual on-board program could look like
+  - By using pypng (about 60KB) and standard Python lists, we avoid the 50MB+ overhead of OpenCV and NumPy.
+  - The load_png_to_gray function handles standard GoPro RGB output by averaging the color channels into a single "Black and White" intensity value.
+  - The _analyze_component function includes a sampling step (len(component) // 100) to ensure that even if a streak is very large, the endpoint calculation won't hang your basic processor.
 
 ## Long term plan:
 1. Develop the program in Python
