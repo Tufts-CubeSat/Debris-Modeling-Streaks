@@ -3,6 +3,7 @@
 ## V.1.
 - Convert pixels to 1 or 0 (black or white)
 - Identify streaks
+#start
 
 ### How to Use:
 - **Generate a Single Preview:** Run `python generate_dataset.py --preview-only`. This generates preview.png, showing the image side-by-side with an annotated version. Use this to visually verify that the streak intensity and star density look realistic enough.
