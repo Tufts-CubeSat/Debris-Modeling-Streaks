@@ -3,8 +3,8 @@
 ## V.1.
 - Convert pixels to 1 or 0 (black or white)
 - Identify streaks
-#start
 
+# Getting Started
 ### How to Use:
 - **Generate a Single Preview:** Run `python generate_dataset.py --preview-only`. This generates preview.png, showing the image side-by-side with an annotated version. Use this to visually verify that the streak intensity and star density look realistic enough.
 - **Generate a Full Dataset:** Run `python generate_dataset.py` for a default of 100 images, or something more specific like `python generate_dataset.py --num-images 500 --output-dir my_debris_data` to create 
