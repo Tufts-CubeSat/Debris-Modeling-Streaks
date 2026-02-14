@@ -3,13 +3,6 @@ Tasks:
     Convert to pbm
     Run image processing on pbm
 
-B
-B
-B
-B
-BB
-B
-B
 Here's the code that Gemini suggested as a starting point:
 
 ```
