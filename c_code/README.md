@@ -1,7 +1,14 @@
-Tasks:
-    Decompress the jpeg
-    Convert to pbm
-    Run image processing on pbm
+## Tasks:
+- Decompress the jpeg
+- Convert to pbm
+- Run image processing on pbm
+
+## Resources:
+- https://www.geeksforgeeks.org/c/c-program-to-check-whether-the-file-is-jpeg-file-or-not/
+- https://github.com/nothings/stb/tree/master
+- https://jpegclub.org/reference/reference-sources/
+
+---
 
 Here's the code that Gemini suggested as a starting point:
 
